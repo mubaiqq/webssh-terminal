@@ -64,8 +64,22 @@ if ! kill -0 $SERVER_PID 2>/dev/null; then
 fi
 echo "   ✓ Server running (PID: $SERVER_PID)"
 
-# 5. Create tunnel
-echo "🌐 Creating tunnel via serveo.net..."
+# 5. Detect public IP
+echo "🌐 Detecting network..."
+PUBLIC_IP=""
+for svc in "ip.sb" "ifconfig.me" "ipinfo.io/ip" "icanhazip.com"; do
+  PUBLIC_IP=$(curl -s --connect-timeout 3 "https://$svc" 2>/dev/null | tr -d '[:space:]')
+  if [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    break
+  fi
+  PUBLIC_IP=""
+done
+
+# Get local LAN IP
+LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+# 6. Create tunnel
+echo "🔗 Creating tunnel via serveo.net..."
 nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -R 80:localhost:$PORT serveo.net > tunnel.log 2>&1 &
 TUNNEL_PID=$!
 
@@ -78,18 +92,22 @@ for i in $(seq 1 15); do
 done
 
 echo ""
-echo "  ╔═══════════════════════════════════════╗"
-echo "  ║         ✅ Deploy Complete!            ║"
-echo "  ╠═══════════════════════════════════════╣"
-printf "  ║  Local:  http://localhost:%-13s ║\n" "$PORT"
-if [ -n "$TUNNEL_URL" ]; then
-  printf "  ║  Tunnel: %-28s ║\n" "$TUNNEL_URL"
-else
-  echo "  ║  Tunnel: (check tunnel.log)           ║"
+echo "  ╔═══════════════════════════════════════════════╗"
+echo "  ║              ✅ Deploy Complete!               ║"
+echo "  ╠═══════════════════════════════════════════════╣"
+printf "  ║  Local:   http://localhost:%-19s ║\n" "$PORT"
+if [ -n "$LAN_IP" ]; then
+  printf "  ║  LAN:     http://%-28s ║\n" "${LAN_IP}:${PORT}"
 fi
-echo "  ╠═══════════════════════════════════════╣"
-echo "  ║  Default password: 123456             ║"
-echo "  ╚═══════════════════════════════════════╝"
+if [ -n "$PUBLIC_IP" ]; then
+  printf "  ║  Public:  http://%-28s ║\n" "${PUBLIC_IP}:${PORT}"
+fi
+if [ -n "$TUNNEL_URL" ]; then
+  printf "  ║  Tunnel:  %-34s ║\n" "$TUNNEL_URL"
+fi
+echo "  ╠═══════════════════════════════════════════════╣"
+echo "  ║  Default password: 123456                     ║"
+echo "  ╚═══════════════════════════════════════════════╝"
 echo ""
 echo "  Server PID: $SERVER_PID | Tunnel PID: $TUNNEL_PID"
 echo "  Logs: tail -f $DIR/server.log"
