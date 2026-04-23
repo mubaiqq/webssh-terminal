@@ -168,6 +168,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .vkb-pg{display:flex;justify-content:center;align-items:center;gap:4px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0}
 .vkb-pg button{height:22px;border-radius:5px;border:1px solid var(--border);background:var(--glass2);color:var(--text2);cursor:pointer;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 8px;font-family:inherit}
 .vkb-pg button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vkb-clip{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0;align-items:center}
+.vkb-clip-input{flex:1;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--glass2);color:var(--text);padding:0 8px;font-size:12px;font-family:inherit;outline:none;min-width:0}
+.vkb-clip-input:focus{border-color:var(--accent)}
+.vkb-clip-input::placeholder{color:var(--text3);font-size:11px}
+.vkb-clip-btn{width:34px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--glass2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;padding:0;transition:all .1s;flex-shrink:0}
+.vkb-clip-btn:active{transform:scale(.9)}
+.vkb-clip-btn.paste:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vkb-clip-btn.send:hover{background:var(--green,#10b981);color:#fff;border-color:var(--green,#10b981)}
 
 @media(max-width:768px){.term-side{display:none}.logo span{display:none}.nav-btn span{display:none}.nav-btn{padding:5px 10px}.header{padding:0 8px}}
 
@@ -390,6 +398,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
     <button class="vkb-close" onclick="toggleVKB()"><i class="fa-solid fa-xmark"></i></button>
   </div>
   <div class="vkb-body" id="vkbBody"></div>
+  <div class="vkb-clip">
+    <input class="vkb-clip-input" id="vkbClipInput" placeholder="粘贴内容到此处..." autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();vkbClipSend()}">
+    <button class="vkb-clip-btn paste" onclick="vkbPaste()" title="从剪贴板粘贴"><i class="fa-solid fa-paste"></i></button>
+    <button class="vkb-clip-btn send" onclick="vkbClipSend()" title="发送到终端"><i class="fa-solid fa-paper-plane"></i></button>
+  </div>
   <div class="vkb-pg" id="vkbPg"></div>
 </div>
 
@@ -639,6 +652,38 @@ function renderVKBPage(){
 }
 
 function vkbGoPage(n){vkbPage=n;renderVKBPage()}
+
+// ── 粘贴发送功能 ──
+async function vkbPaste(){
+  try{
+    const txt=await navigator.clipboard.readText();
+    if(txt){
+      document.getElementById('vkbClipInput').value=txt;
+      toast('已粘贴','ok');
+    }else{
+      toast('剪贴板为空','err');
+    }
+  }catch(e){
+    // 权限被拒绝时，尝试用 execCommand 兜底
+    const inp=document.getElementById('vkbClipInput');
+    inp.focus();
+    document.execCommand('paste');
+    if(!inp.value)toast('请手动长按粘贴','err');
+  }
+}
+function vkbClipSend(){
+  const inp=document.getElementById('vkbClipInput');
+  const txt=inp.value;
+  if(!txt)return toast('内容为空','err');
+  if(!activeTabId)return toast('无终端连接','err');
+  const tab=tabs.find(t=>t.id===activeTabId);
+  if(!tab||!tab.ws||tab.ws.readyState!==1)return toast('终端未就绪','err');
+  tab.ws.send(txt);
+  inp.value='';
+  toast('已发送','ok');
+  tab.term&&tab.term.focus();
+}
+
 function vkbMod(k){
   if(k==='Ctrl'){vkbCtrlOn=!vkbCtrlOn;const el=document.getElementById('vkbCtrl');if(el)el.classList.toggle('on',vkbCtrlOn)}
   if(k==='Alt'){vkbAltOn=!vkbAltOn;const el=document.getElementById('vkbAlt');if(el)el.classList.toggle('on',vkbAltOn)}
