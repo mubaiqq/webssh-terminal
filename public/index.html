@@ -141,8 +141,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .sb-item .sb-run{width:20px;height:20px;border-radius:4px;border:none;background:var(--green);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;opacity:0;transition:all .1s;flex-shrink:0}
 .sb-item:hover .sb-run{opacity:1}
 .term-body{flex:1;position:relative;overflow:hidden;min-height:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.15)}
-.term-card{position:relative;width:calc(100% - 16px);height:calc(100% - 16px);border-radius:var(--radius-lg);overflow:hidden;background:rgba(0,0,0,0.25);border:1px solid var(--border)}
-.term-pane{position:absolute;inset:0;display:none;overflow:hidden}
+.term-card{position:relative;width:calc(100% - 16px);height:calc(100% - 16px);border-radius:var(--radius-lg);overflow:hidden;background:rgba(0,0,0,0.25);border:1px solid var(--border);padding:var(--radius-lg)}
+.term-pane{position:relative;width:100%;height:100%;display:none;overflow:hidden;border-radius:calc(var(--radius-lg) - 4px);background:rgba(0,0,0,0.3)}
 .term-pane.on{display:block}
 .term-pane .xterm{height:100%!important;background:transparent!important}
 .term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:scroll!important}
@@ -590,15 +590,13 @@ tab.term=term;tab.fitAddon=fit;
 
 // Fit terminal to card — use only 60% of height, keep 40% empty at bottom
 function doFit(){
-  const cw=card.clientWidth,ch=card.clientHeight;
-  if(cw<=0||ch<=0)return;
-  // Measure cell dimensions
+  const pw=pane.clientWidth,ph=pane.clientHeight;
+  if(pw<=0||ph<=0)return;
   const dims=term._core._renderService?.dimensions;
   const cellH=dims?.css?.cell?.height||Math.ceil(fs*1.2);
   const cellW=dims?.css?.cell?.width||Math.ceil(fs*0.6);
-  // Use 60% of card height for terminal rows
-  const usableH=Math.floor(ch*0.6);
-  const cols=Math.max(20,Math.floor(cw/cellW));
+  const usableH=Math.floor(ph*0.6);
+  const cols=Math.max(20,Math.floor(pw/cellW));
   const rows=Math.max(5,Math.floor(usableH/cellH));
   if(cols!==term.cols||rows!==term.rows){
     term.resize(cols,rows);
