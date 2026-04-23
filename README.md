@@ -53,13 +53,16 @@ bash deploy.sh
 
 ### 更新已部署的版本
 
-已经部署过的服务器，再次运行即可平滑更新，数据保留：
+重新运行一键部署脚本即可，数据自动保留：
 
 ```bash
-bash deploy.sh
+# 国内
+bash <(curl -sL https://ghfast.top/https://raw.githubusercontent.com/mubaiqq/webssh-terminal/main/deploy.sh)
+# 海外
+bash <(curl -sL https://raw.githubusercontent.com/mubaiqq/webssh-terminal/main/deploy.sh)
 ```
 
-自动检测：代码有变则 git pull，package.json 有变则 npm install，pm2 reload 零停机重载，data 目录完全保留。
+自动处理：停止旧进程 → 拉取最新代码 → 保留 data/ → 安装依赖 → 启动服务。
 
 ### 子目录反代（已有网站时推荐）
 

@@ -1,9 +1,12 @@
 #!/bin/bash
 # WebSSH Terminal — 一键部署 / 更新
 # 用法:
-#   bash deploy.sh              # 部署或更新（保留数据）
-#   bash deploy.sh --fresh      # 全新安装（清除旧进程）
-#   PORT=8080 bash deploy.sh    # 自定义端口
+#   海外服务器:
+#     bash <(curl -sL https://raw.githubusercontent.com/mubaiqq/webssh-terminal/main/deploy.sh)
+#   国内服务器（加速）:
+#     bash <(curl -sL https://ghfast.top/https://raw.githubusercontent.com/mubaiqq/webssh-terminal/main/deploy.sh)
+#   自定义端口:
+#     PORT=8080 bash <(curl -sL ...)
 set -e
 
 PORT="${PORT:-9111}"
@@ -21,102 +24,66 @@ echo "  ║   ⚡ WebSSH Terminal Deploy   ║"
 echo "  ╚══════════════════════════════╝"
 echo ""
 
-# ── 1. 确定代码来源 ──
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HAS_GIT=false
-[ -d "$SCRIPT_DIR/.git" ] && HAS_GIT=true
-
-# ── 2. Node.js 检查 ──
+# ── 1. Node.js 检查 ──
 if ! command -v node &>/dev/null; then
   echo "❌ Node.js not found. Install: https://nodejs.org"
   exit 1
 fi
 echo "   ✓ Node.js $(node -v)"
 
-# ── 3. 安装依赖（本地目录） ──
-if [ "$HAS_GIT" = true ]; then
-  cd "$SCRIPT_DIR"
-  if [ ! -d "node_modules" ]; then
-    echo "📦 Installing dependencies..."
-    npm install --production --registry="$NPM_REGISTRY" 2>&1 | tail -3
-    echo "   ✓ Dependencies installed"
-  else
-    echo "📦 Dependencies OK"
-  fi
-fi
-
-# ── 4. 安装 pm2 ──
+# ── 2. 安装 pm2 ──
 if ! command -v pm2 &>/dev/null; then
   echo "🔧 Installing pm2..."
   npm install -g pm2 --registry="$NPM_REGISTRY" 2>&1 | tail -3
 fi
 
-# ── 5. 停止旧进程 + 释放端口 ──
+# ── 3. 停止旧进程 + 释放端口 ──
 echo "🛑 Stopping old processes..."
 pm2 stop "$APP_NAME" 2>/dev/null && echo "   ✓ pm2 stopped" || true
 pm2 delete "$APP_NAME" 2>/dev/null && echo "   ✓ pm2 deleted" || true
 
-# 杀掉占用端口的进程（不管是不是自己的）
 if command -v fuser &>/dev/null; then
   if fuser "$PORT/tcp" &>/dev/null; then
     echo "   ⚠ Port $PORT in use, freeing..."
     fuser -k "$PORT/tcp" 2>/dev/null || true
     sleep 1
-    echo "   ✓ Port $PORT freed"
   fi
 elif command -v lsof &>/dev/null; then
   PID=$(lsof -ti :"$PORT" 2>/dev/null)
   if [ -n "$PID" ]; then
-    echo "   ⚠ Port $PORT in use by PID $PID, killing..."
+    echo "   ⚠ Port $PORT in use, killing PID $PID..."
     kill -9 $PID 2>/dev/null || true
     sleep 1
-    echo "   ✓ Port $PORT freed"
   fi
 fi
-
-# 停掉旧隧道
 pkill -f "ssh.*serveo.net" 2>/dev/null || true
 
-# ── 6. 同步文件到安装目录 ──
-if [ "$HAS_GIT" = true ]; then
-  # 从本地仓库目录部署
+# ── 4. 获取代码 ──
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -d "$SCRIPT_DIR/.git" ] && [ -f "$SCRIPT_DIR/server.js" ]; then
+  # 从本地仓库目录部署（在仓库里直接运行 deploy.sh）
   if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
-    echo "📂 Copying files to $INSTALL_DIR ..."
+    echo "📂 Syncing from $SCRIPT_DIR ..."
     mkdir -p "$INSTALL_DIR"
-
-    # 排除 data/、node_modules/、.git/，其余全部覆盖
     rsync -a --delete \
       --exclude '.git/' \
       --exclude 'node_modules/' \
       --exclude 'data/' \
+      --exclude 'tunnel.log' \
       "$SCRIPT_DIR/" "$INSTALL_DIR/"
-    echo "   ✓ Files synced (data/ preserved)"
-
-    # 如果安装目录没有 node_modules，装一下
-    cd "$INSTALL_DIR"
-    if [ ! -d "node_modules" ]; then
-      echo "📦 Installing dependencies in $INSTALL_DIR ..."
-      npm install --production --registry="$NPM_REGISTRY" 2>&1 | tail -3
-    fi
+    echo "   ✓ Files synced"
   else
-    cd "$INSTALL_DIR"
-    echo "📂 Using local directory: $INSTALL_DIR"
+    echo "📂 Using $INSTALL_DIR"
   fi
+  cd "$INSTALL_DIR"
 else
-  # 没有 .git → 从 GitHub 克隆/拉取
+  # 一键部署（curl 运行）— 从 GitHub 克隆或更新
   if [ -d "$INSTALL_DIR/.git" ]; then
     echo "🔄 Updating from GitHub..."
     cd "$INSTALL_DIR"
-    # 暂存本地修改，拉取后恢复 data/
-    if [ -d "data" ]; then
-      cp -a data /tmp/_webssh_data_bak
-    fi
-    git fetch origin
-    git reset --hard origin/main 2>&1 | tail -3
-    if [ -d "/tmp/_webssh_data_bak" ]; then
-      cp -a /tmp/_webssh_data_bak/* data/ 2>/dev/null || true
-      rm -rf /tmp/_webssh_data_bak
-    fi
+    [ -d "data" ] && cp -a data /tmp/_webssh_data_bak
+    git fetch origin && git reset --hard origin/main 2>&1 | tail -3
+    [ -d "/tmp/_webssh_data_bak" ] && { cp -a /tmp/_webssh_data_bak/* data/ 2>/dev/null; rm -rf /tmp/_webssh_data_bak; }
     echo "   ✓ Code updated (data/ preserved)"
   else
     echo "📥 First install, cloning..."
@@ -128,20 +95,18 @@ else
     fi
     cd "$INSTALL_DIR"
   fi
-
-  # 安装依赖
-  NEED_INSTALL=false
-  [ ! -d "node_modules" ] && NEED_INSTALL=true
-  if [ "$NEED_INSTALL" = true ]; then
-    echo "📦 Installing dependencies..."
-    npm install --production --registry="$NPM_REGISTRY" 2>&1 | tail -3
-    echo "   ✓ Dependencies installed"
-  fi
 fi
 
-cd "$INSTALL_DIR"
+# ── 5. 安装依赖 ──
+if [ ! -d "node_modules" ] || [ -f "package.json" ] && [ "package.json" -nt "node_modules" ]; then
+  echo "📦 Installing dependencies..."
+  npm install --production --registry="$NPM_REGISTRY" 2>&1 | tail -3
+  echo "   ✓ Dependencies installed"
+else
+  echo "📦 Dependencies OK"
+fi
 
-# ── 7. 启动服务 ──
+# ── 6. 启动服务 ──
 echo "🚀 Starting $APP_NAME on port $PORT..."
 pm2 start server.js --name "$APP_NAME" \
   --max-memory-restart 300M \
@@ -150,22 +115,17 @@ pm2 start server.js --name "$APP_NAME" \
   --env PORT="$PORT" \
   --env BASE_PATH="$BASE_PATH" \
   2>&1 | tail -5
-
 pm2 save 2>&1 | tail -1
-ACTION="started"
 
-# ── 8. 开机自启 ──
-echo "⚡ Configuring auto-start on boot..."
+# ── 7. 开机自启 ──
+echo "⚡ Configuring auto-start..."
 PM2_STARTUP=$(pm2 startup 2>&1)
 if echo "$PM2_STARTUP" | grep -q "sudo"; then
-  STARTUP_CMD=$(echo "$PM2_STARTUP" | grep "sudo" | head -1)
-  echo "   Running: $STARTUP_CMD"
-  eval "$STARTUP_CMD" 2>&1 | tail -2
+  eval "$(echo "$PM2_STARTUP" | grep "sudo" | head -1)" 2>&1 | tail -2
 fi
 pm2 save 2>&1 | tail -1
-echo "   ✓ Auto-start configured"
 
-# ── 9. 网络探测 ──
+# ── 8. 网络探测 ──
 echo "🌐 Detecting network..."
 PUBLIC_IP=""
 for svc in "myip.ipip.net" "ip.sb" "ifconfig.me" "ipinfo.io/ip" "icanhazip.com"; do
@@ -176,19 +136,17 @@ LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
 TUNNEL_URL=""
 if [ "$ENABLE_TUNNEL" = "true" ]; then
-  echo "🔗 Creating tunnel via serveo.net..."
+  echo "🔗 Creating tunnel..."
   nohup ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -R 80:localhost:$PORT serveo.net > tunnel.log 2>&1 &
-  for i in $(seq 1 10); do
+  for i in $(seq 1 8); do
     sleep 2
     TUNNEL_URL=$(grep -oP 'https?://[a-zA-Z0-9.-]+\.serveo[a-z.]*' tunnel.log 2>/dev/null | head -1)
     [ -n "$TUNNEL_URL" ] && break
   done
   [ -z "$TUNNEL_URL" ] && echo "   ⚠ Tunnel timeout, skipping"
-else
-  echo "⏭  Tunnel disabled"
 fi
 
-# ── 10. 显示结果 ──
+# ── 9. 结果 ──
 echo ""
 echo "  ╔═══════════════════════════════════════════════╗"
 echo "  ║              ✅ Deploy Complete!               ║"
@@ -200,13 +158,9 @@ printf "  ║  Local:   http://localhost:%-19s ║\n" "$PORT"
 echo "  ╠═══════════════════════════════════════════════╣"
 echo "  ║  Default password: 123456                     ║"
 echo "  ╠═══════════════════════════════════════════════╣"
-echo "  ║  🔒 pm2 守护进程: ✅                          ║"
-echo "  ║  ⚡ 开机自启:     ✅                          ║"
+echo "  ║  🔒 pm2 守护进程 · ⚡ 开机自启               ║"
 echo "  ╚═══════════════════════════════════════════════╝"
 echo ""
-echo "  常用命令："
-echo "    pm2 status          # 查看状态"
-echo "    pm2 logs            # 查看日志"
-echo "    pm2 restart         # 重启服务"
-echo "    bash deploy.sh      # 更新到最新版"
+echo "  更新: 重新运行此脚本即可"
+echo "  卸载: bash <(curl -sL $GH_PROXY/$REPO/raw/main/uninstall.sh)"
 echo ""
