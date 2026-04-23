@@ -168,14 +168,15 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .vkb-pg{display:flex;justify-content:center;align-items:center;gap:4px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0}
 .vkb-pg button{height:22px;border-radius:5px;border:1px solid var(--border);background:var(--glass2);color:var(--text2);cursor:pointer;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 8px;font-family:inherit}
 .vkb-pg button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-.vkb-clip{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--border);flex-shrink:0;align-items:center}
-.vkb-clip-input{flex:1;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--glass2);color:var(--text);padding:0 8px;font-size:12px;font-family:inherit;outline:none;min-width:0}
-.vkb-clip-input:focus{border-color:var(--accent)}
-.vkb-clip-input::placeholder{color:var(--text3);font-size:11px}
-.vkb-clip-btn{width:34px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--glass2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;padding:0;transition:all .1s;flex-shrink:0}
-.vkb-clip-btn:active{transform:scale(.9)}
-.vkb-clip-btn.paste:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.vkb-clip-btn.send:hover{background:var(--green,#10b981);color:#fff;border-color:var(--green,#10b981)}
+.vkb-clip-page{display:flex;flex-direction:column;gap:8px;padding:4px;height:100%}
+.vkb-clip-textarea{flex:1;width:100%;border-radius:8px;border:1px solid var(--border);background:var(--glass2);color:var(--text);padding:10px;font-size:13px;font-family:inherit;outline:none;resize:none;box-sizing:border-box}
+.vkb-clip-textarea:focus{border-color:var(--accent)}
+.vkb-clip-textarea::placeholder{color:var(--text3)}
+.vkb-clip-actions{display:flex;gap:8px;flex-shrink:0}
+.vkb-clip-action{flex:1;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--glass2);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;font-family:inherit;transition:all .12s}
+.vkb-clip-action:active{transform:scale(.95)}
+.vkb-clip-action.paste:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.vkb-clip-action.send:hover{background:var(--green,#10b981);color:#fff;border-color:var(--green,#10b981)}
 
 @media(max-width:768px){.term-side{display:none}.logo span{display:none}.nav-btn span{display:none}.nav-btn{padding:5px 10px}.header{padding:0 8px}}
 
@@ -398,11 +399,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
     <button class="vkb-close" onclick="toggleVKB()"><i class="fa-solid fa-xmark"></i></button>
   </div>
   <div class="vkb-body" id="vkbBody"></div>
-  <div class="vkb-clip">
-    <input class="vkb-clip-input" id="vkbClipInput" placeholder="粘贴内容到此处..." autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();vkbClipSend()}">
-    <button class="vkb-clip-btn paste" onclick="vkbPaste()" title="从剪贴板粘贴"><i class="fa-solid fa-paste"></i></button>
-    <button class="vkb-clip-btn send" onclick="vkbClipSend()" title="发送到终端"><i class="fa-solid fa-paper-plane"></i></button>
-  </div>
   <div class="vkb-pg" id="vkbPg"></div>
 </div>
 
@@ -584,6 +580,7 @@ function applyTermOpts(){const fs=parseInt(document.getElementById('sFontSize').
 
 // ─── Virtual Keyboard (Floating, Draggable, Paginated) ───
 const VKB_PAGES=[
+  {name:'📋 粘贴',type:'paste'},
   {name:'快捷',rows:[
     [{k:'Ctrl+C',t:'⌃C',w:'combo'},{k:'Ctrl+V',t:'⌃V',w:'combo'},{k:'Ctrl+Z',t:'⌃Z',w:'combo'},{k:'Ctrl+D',t:'⌃D',w:'combo'},{k:'Ctrl+L',t:'⌃L',w:'combo'}],
     [{k:'Ctrl',t:'CTRL',w:'mod',id:'vkbCtrl'},{k:'Alt',t:'ALT',w:'mod',id:'vkbAlt'},{k:'Esc',t:'ESC',w:'wide'},{k:'Tab',t:'TAB',w:'wide'}],
@@ -622,6 +619,7 @@ const VKB_PAGES=[
     [{k:'Ctrl',t:'CTRL',w:'mod',id:'vkbCtrl'},{k:'Alt',t:'ALT',w:'mod',id:'vkbAlt'},{k:'Enter',t:'↵',w:'wide'}],
     [{k:'Up',t:'▲'},{k:'Down',t:'▼'},{k:'Left',t:'◀'},{k:'Right',t:'▶'}],
   ]},
+  {name:'📋 粘贴',type:'paste'},
 ];
 let vkbPage=0,vkbOpen=false,vkbCtrlOn=false,vkbAltOn=false;
 
@@ -638,17 +636,37 @@ function renderVKBPage(){
   const body=document.getElementById('vkbBody');
   const pg=document.getElementById('vkbPg');
   const page=VKB_PAGES[vkbPage];
-  body.innerHTML=page.rows.map(r=>'<div class="vkb-row">'+r.map(b=>{
-    const cls='vkb-btn'+(b.w==='wide'?' wide':'')+(b.w==='wider'?' wider':'')+(b.w==='space'?' space':'')+(b.w==='mod'?' mod':'')+(b.w==='combo'?' combo':'');
-    const id=b.id?` id="${b.id}"`:'';
-    const on=(b.id==='vkbCtrl'&&vkbCtrlOn)||(b.id==='vkbAlt'&&vkbAltOn)?' on':'';
-    let fn;
-    if(b.w==='combo')fn=`vkbCombo('${b.k}')`;
-    else if(b.w==='mod')fn=`vkbMod('${b.k}')`;
-    else fn=`vkbPress('${b.k}')`;
-    return `<button class="${cls}${on}"${id} onclick="${fn}">${b.t}</button>`;
-  }).join('')+'</div>').join('');
-  pg.innerHTML=VKB_PAGES.map((p,i)=>`<button class="${i===vkbPage?'on':''}" onclick="vkbGoPage(${i})">${p.name}</button>`).join('');
+
+  // 粘贴专属页面
+  if(page.type==='paste'){
+    body.innerHTML=`<div class="vkb-clip-page">
+      <textarea class="vkb-clip-textarea" id="vkbClipArea" placeholder="在此输入或粘贴内容..." rows="5"></textarea>
+      <div class="vkb-clip-actions">
+        <button class="vkb-clip-action paste" onclick="vkbPaste()"><i class="fa-solid fa-paste"></i> 从剪贴板粘贴</button>
+        <button class="vkb-clip-action send" onclick="vkbClipSend()"><i class="fa-solid fa-paper-plane"></i> 发送到终端</button>
+      </div>
+    </div>`;
+  }else{
+    body.innerHTML=page.rows.map(r=>'<div class="vkb-row">'+r.map(b=>{
+      const cls='vkb-btn'+(b.w==='wide'?' wide':'')+(b.w==='wider'?' wider':'')+(b.w==='space'?' space':'')+(b.w==='mod'?' mod':'')+(b.w==='combo'?' combo':'');
+      const id=b.id?` id="${b.id}"`:'';
+      const on=(b.id==='vkbCtrl'&&vkbCtrlOn)||(b.id==='vkbAlt'&&vkbAltOn)?' on':'';
+      let fn;
+      if(b.w==='combo')fn=`vkbCombo('${b.k}')`;
+      else if(b.w==='mod')fn=`vkbMod('${b.k}')`;
+      else fn=`vkbPress('${b.k}')`;
+      return `<button class="${cls}${on}"${id} onclick="${fn}">${b.t}</button>`;
+    }).join('')+'</div>').join('');
+  }
+
+  // Tab 栏：粘贴放最左边，然后是其他页
+  const pasteIdx=VKB_PAGES.findIndex(p=>p.type==='paste');
+  const pasteTab=`<button class="${vkbPage===pasteIdx?'on':''}" onclick="vkbGoPage(${pasteIdx})">📋 粘贴</button>`;
+  const otherTabs=VKB_PAGES.map((p,i)=>{
+    if(p.type==='paste')return '';
+    return `<button class="${i===vkbPage?'on':''}" onclick="vkbGoPage(${i})">${p.name}</button>`;
+  }).join('');
+  pg.innerHTML=pasteTab+otherTabs;
 }
 
 function vkbGoPage(n){vkbPage=n;renderVKBPage()}
@@ -658,28 +676,32 @@ async function vkbPaste(){
   try{
     const txt=await navigator.clipboard.readText();
     if(txt){
-      document.getElementById('vkbClipInput').value=txt;
+      const area=document.getElementById('vkbClipArea');
+      if(area){area.value=txt;area.focus()}
       toast('已粘贴','ok');
     }else{
       toast('剪贴板为空','err');
     }
   }catch(e){
-    // 权限被拒绝时，尝试用 execCommand 兜底
-    const inp=document.getElementById('vkbClipInput');
-    inp.focus();
-    document.execCommand('paste');
-    if(!inp.value)toast('请手动长按粘贴','err');
+    const area=document.getElementById('vkbClipArea');
+    if(area){area.focus();document.execCommand('paste')}
+    if(!area||!area.value)toast('请手动长按粘贴','err');
   }
 }
 function vkbClipSend(){
-  const inp=document.getElementById('vkbClipInput');
-  const txt=inp.value;
+  const area=document.getElementById('vkbClipArea');
+  const txt=area?area.value:'';
   if(!txt)return toast('内容为空','err');
   if(!activeTabId)return toast('无终端连接','err');
   const tab=tabs.find(t=>t.id===activeTabId);
   if(!tab||!tab.ws||tab.ws.readyState!==1)return toast('终端未就绪','err');
-  tab.ws.send(txt);
-  inp.value='';
+  // 逐行发送，每行之间加回车
+  const lines=txt.split('\n');
+  lines.forEach((line,i)=>{
+    tab.ws.send(line);
+    if(i<lines.length-1)tab.ws.send('\r');
+  });
+  area.value='';
   toast('已发送','ok');
   tab.term&&tab.term.focus();
 }
