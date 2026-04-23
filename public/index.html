@@ -539,7 +539,7 @@ function closeModal(){document.getElementById('modals').innerHTML=''}
 function v(id){return(document.getElementById(id)||{}).value||''}
 
 // ─── Multi-Tab Terminals ───
-function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:3000,convertEol:true});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);fit.fit();term.focus();tab.term=term;tab.fitAddon=fit;
+function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:3000,convertEol:true});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);setTimeout(()=>{fit.fit();term.scrollBottom();term.focus()},80);tab.term=term;tab.fitAddon=fit;
 // Selection copy: double-click to select + copy, right-click to copy
 term.attachCustomKeyEventHandler(ev=>{
   // Ctrl+Shift+C = copy selection
@@ -564,11 +564,12 @@ ws.onmessage=e=>{
   }
   // Otherwise it's raw terminal output - write directly
   term.write(d);
+  term.scrollBottom();
 };
 ws.onclose=()=>{document.getElementById('sDot').classList.remove('on')};
 term.onData(d=>{if(ws.readyState===1)ws.send(d)});tab.ws=ws;const onResize=()=>{if(tab.fitAddon)tab.fitAddon.fit()};window.addEventListener('resize',onResize);tab._onResize=onResize}
 
-function activateTab(tabId){activeTabId=tabId;tabs.forEach(t=>{const pane=document.getElementById('pane_'+t.id);if(pane)pane.classList.toggle('on',t.id===tabId);if(t.id===tabId&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();t.term&&t.term.focus()},50)});renderTabs()}
+function activateTab(tabId){activeTabId=tabId;tabs.forEach(t=>{const pane=document.getElementById('pane_'+t.id);if(pane)pane.classList.toggle('on',t.id===tabId);if(t.id===tabId&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();if(t.term){t.term.scrollBottom();t.term.focus()}},80)});renderTabs()}
 function closeTab(tabId){const idx=tabs.findIndex(t=>t.id===tabId);if(idx===-1)return;const tab=tabs[idx];if(tab._onResize)window.removeEventListener('resize',tab._onResize);if(tab.ws)tab.ws.close();if(tab.term)tab.term.dispose();const pane=document.getElementById('pane_'+tabId);if(pane)pane.remove();tabs.splice(idx,1);if(activeTabId===tabId){activeTabId=tabs.length?tabs[Math.min(idx,tabs.length-1)].id:null;if(activeTabId)activateTab(activeTabId)}renderTabs();if(!tabs.length)document.getElementById('sDot').classList.remove('on')}
 
 function renderTabs(){const el=document.getElementById('termTabs');let h=tabs.map(t=>`<div class="t-tab ${t.id===activeTabId?'on':''}" onclick="activateTab('${t.id}')">
