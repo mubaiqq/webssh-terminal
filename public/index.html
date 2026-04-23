@@ -588,7 +588,7 @@ term.open(pane);tab.term=term;
 function doFit(){
   const bh=body.clientHeight,bw=body.clientWidth;
   if(bh<=0||bw<=0)return;
-  const usableH=bh-80;
+  const usableH=bh-150;
   const cellH=Math.ceil(fs*1.2);
   const cellW=Math.ceil(fs*0.6);
   const cols=Math.max(20,Math.floor(bw/cellW));
