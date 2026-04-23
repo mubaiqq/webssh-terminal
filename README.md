@@ -51,6 +51,31 @@ bash deploy.sh
 
 部署完成后会显示本地、公网、隧道访问地址。
 
+### 子目录反代（已有网站时推荐）
+
+如果服务器上已有网站，不想新开域名/端口，可以用 `BASE_PATH` 部署到子目录：
+
+```bash
+# 设置 BASE_PATH 启动
+BASE_PATH=/ssh pm2 start server.js --name webssh-terminal
+```
+
+然后在 nginx 中添加反代配置：
+
+```nginx
+location /ssh/ {
+    proxy_pass http://127.0.0.1:9111/ssh/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_read_timeout 86400;
+}
+```
+
+访问 `https://你的域名/ssh` 即可使用，无需额外域名或端口。
+
 ## 🔧 管理命令
 
 ```bash

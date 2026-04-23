@@ -10,6 +10,8 @@ APP_NAME="webssh-terminal"
 NPM_REGISTRY="https://registry.npmmirror.com"
 GH_PROXY="https://ghfast.top"
 ENABLE_TUNNEL="${ENABLE_TUNNEL:-true}"
+# 子目录反代路径（留空则部署到根路径，设为 /ssh 则访问 域名/ssh）
+BASE_PATH="${BASE_PATH:-}"
 
 echo ""
 echo "  ╔══════════════════════════════╗"
@@ -72,10 +74,14 @@ sleep 1
 
 # 5. Start with pm2 (进程守护 + 崩溃自重启)
 echo "🚀 Starting server with pm2..."
+if [ -n "$BASE_PATH" ]; then
+  echo "   📂 Base path: $BASE_PATH"
+fi
 pm2 start server.js --name "$APP_NAME" \
   --max-memory-restart 300M \
   --exp-backoff-restart-delay=100 \
   --time \
+  --env BASE_PATH="$BASE_PATH" \
   2>&1 | tail -5
 
 # Save pm2 process list

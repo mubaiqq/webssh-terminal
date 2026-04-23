@@ -397,6 +397,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
 <script>
+const BP = window.__BASE_PATH__ || "";
 let servers=[],commands=[],notes=[],currentNoteId=null;
 let settings={theme:'dark',bg:{type:'color',value:'#0f0f1a',opacity:1}};
 let tabs=[],activeTabId=null,tabCounter=0;
@@ -404,7 +405,7 @@ let tabs=[],activeTabId=null,tabCounter=0;
 // ─── Boot ───
 (async function boot(){
   document.getElementById('loadingScreen').style.display='flex';
-  try{settings=await(await fetch('/api/settings')).json()}catch(e){}
+  try{settings=await(await fetch(BP+'/api/settings')).json()}catch(e){}
   setTheme(settings.theme||'dark');applyBgToDOM();applySettingsUI();
   await Promise.all([loadServers(),loadCommands(),loadNotes()]);
   document.getElementById('loadingScreen').classList.add('hide');
@@ -437,7 +438,7 @@ function submitGate(){
   if(!pwd)return;
   const btn=document.getElementById('gateBtn');
   btn.classList.add('loading');btn.textContent='验证中';
-  fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})})
+  fetch(BP+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})})
   .then(r=>r.json()).then(d=>{
     if(d.ok){
       setAuthCookie(pwd);
@@ -460,15 +461,15 @@ function toggleSett(){document.getElementById('settPanel').classList.toggle('sho
 
 function applyBg(){const type=document.getElementById('sBgType').value;const op=parseFloat(document.getElementById('sBgOp').value);document.getElementById('rowBgC').style.display=type==='color'?'':'none';document.getElementById('rowBgU').style.display=type==='url'?'':'none';document.getElementById('rowBgF').style.display=type==='upload'?'':'none';settings.bg={type,value:type==='color'?document.getElementById('sBgColor').value:document.getElementById('sBgUrl').value,opacity:op};saveSettings();applyBgToDOM()}
 function applyBgToDOM(){const s=settings.bg,l=document.getElementById('bgLayer');l.style.opacity=s.opacity;if(s.type==='color'){l.style.background=s.value;l.innerHTML=''}else if(s.value){l.style.background='';l.innerHTML=`<img src="${s.value}">`}else{l.style.background='';l.innerHTML=''}}
-function uploadBg(input){const file=input.files[0];if(!file)return;const r=new FileReader();r.onload=async()=>{const ext=file.name.split('.').pop();const res=await fetch('/api/upload',{method:'POST',headers:{'x-ext':ext},body:r.result});const{url}=await res.json();document.getElementById('sBgUrl').value=url;document.getElementById('sBgType').value='url';applyBg()};r.readAsArrayBuffer(file)}
+function uploadBg(input){const file=input.files[0];if(!file)return;const r=new FileReader();r.onload=async()=>{const ext=file.name.split('.').pop();const res=await fetch(BP+'/api/upload',{method:'POST',headers:{'x-ext':ext},body:r.result});const{url}=await res.json();document.getElementById('sBgUrl').value=url;document.getElementById('sBgType').value='url';applyBg()};r.readAsArrayBuffer(file)}
 function applySettingsUI(){const s=settings.bg;document.getElementById('sBgType').value=s.type;document.getElementById('sBgColor').value=s.type==='color'?s.value:'#0f0f1a';document.getElementById('sBgUrl').value=s.type!=='color'?s.value:'';document.getElementById('sBgOp').value=s.opacity;document.getElementById('rowBgC').style.display=s.type==='color'?'':'none';document.getElementById('rowBgU').style.display=s.type==='url'?'':'none';document.getElementById('rowBgF').style.display=s.type==='upload'?'':'none';document.querySelectorAll('.theme-btn').forEach(b=>b.classList.toggle('on',b.classList.contains(settings.theme==='dark'?'dk':'lt')))}
-async function loadSettings(){try{settings=await(await fetch('/api/settings')).json()}catch(e){}setTheme(settings.theme||'dark');applyBgToDOM();applySettingsUI()}
-async function saveSettings(){await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)})}
+async function loadSettings(){try{settings=await(await fetch(BP+'/api/settings')).json()}catch(e){}setTheme(settings.theme||'dark');applyBgToDOM();applySettingsUI()}
+async function saveSettings(){await fetch(BP+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)})}
 
 async function changePwd(){
   const pwd=document.getElementById('sNewPwd').value.trim();
   if(!pwd)return toast('请输入新密码','err');
-  await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
+  await fetch(BP+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
   document.getElementById('sNewPwd').value='';
   toast('密码已更新','ok');
 }
@@ -476,7 +477,7 @@ async function changePwd(){
 function goPage(p){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.p===p));document.querySelectorAll('.page').forEach(pg=>pg.classList.toggle('active',pg.id==='pg-'+p));if(p==='terminal'&&activeTabId){const t=tabs.find(x=>x.id===activeTabId);if(t&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();t.term&&t.term.focus()},50)}if(p==='commands')renderCommands();if(p==='notes')renderNotesList()}
 
 // ─── Servers ───
-async function loadServers(){try{servers=await(await fetch('/api/servers')).json()}catch(e){servers=[]}renderServers()}
+async function loadServers(){try{servers=await(await fetch(BP+'/api/servers')).json()}catch(e){servers=[]}renderServers()}
 function renderServers(){const el=document.getElementById('srvList');let h=servers.map(s=>`<div class="srv-row ${s.type}" onclick="connectSrv('${s.id}')">
   <div class="sr-icon"><i class="fa-solid fa-${s.type==='local'?'house':'globe'}"></i></div>
   <div class="sr-info"><div class="sr-name">${esc(s.name)}</div><div class="sr-addr">${s.type==='local'?'本地终端':esc(s.host)+':'+s.port}</div></div>
@@ -506,7 +507,7 @@ function showAddSrv(){mkModal('添加服务器',`<div class="fg"><label>名称</
 function selType(el,type){el.parentElement.querySelectorAll('.radio-opt').forEach(r=>r.classList.remove('sel'));el.classList.add('sel');document.getElementById('mRemote').style.display=type==='remote'?'':'none'}
 function selAuth(el,type){el.parentElement.querySelectorAll('.radio-opt').forEach(r=>r.classList.remove('sel'));el.classList.add('sel');document.getElementById('authPwd').style.display=type==='password'?'':'none';document.getElementById('authKey').style.display=type==='key'?'':'none'}
 
-async function addSrv(){const name=v('mName');if(!name)return toast('请输入名称','err');const sel=document.querySelector('.radio-opt.sel');const type=sel&&sel.textContent.includes('远程')?'remote':'local';const data={name,type};if(type==='remote'){data.host=v('mHost');data.port=parseInt(v('mPort'))||22;data.user=v('mUser')||'root';if(!data.host)return toast('请输入主机','err');const authSel=document.querySelectorAll('#mRemote .radio-opt.sel');const authType=authSel.length>1&&authSel[1].textContent.includes('密钥')?'key':'password';data.auth=authType;data.password=authType==='password'?v('mPwd'):'';data.keyPath=authType==='key'?v('mKey'):''}await fetch('/api/servers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});closeModal();loadServers();toast('已添加','ok')}
+async function addSrv(){const name=v('mName');if(!name)return toast('请输入名称','err');const sel=document.querySelector('.radio-opt.sel');const type=sel&&sel.textContent.includes('远程')?'remote':'local';const data={name,type};if(type==='remote'){data.host=v('mHost');data.port=parseInt(v('mPort'))||22;data.user=v('mUser')||'root';if(!data.host)return toast('请输入主机','err');const authSel=document.querySelectorAll('#mRemote .radio-opt.sel');const authType=authSel.length>1&&authSel[1].textContent.includes('密钥')?'key':'password';data.auth=authType;data.password=authType==='password'?v('mPwd'):'';data.keyPath=authType==='key'?v('mKey'):''}await fetch(BP+'/api/servers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});closeModal();loadServers();toast('已添加','ok')}
 
 function editSrv(id){const s=servers.find(x=>x.id===id);if(!s)return;mkModal('编辑服务器',`<div class="fg"><label>名称</label><input id="mName" value="${esc(s.name)}"></div>
   <div class="fg-row"><div class="fg"><label>主机</label><input id="mHost" value="${esc(s.host)}"></div><div class="fg"><label>端口</label><input id="mPort" value="${s.port}"></div></div>
@@ -519,8 +520,8 @@ function editSrv(id){const s=servers.find(x=>x.id===id);if(!s)return;mkModal('�
     <div id="authKey" style="${s.auth!=='key'?'display:none':''}"><div class="fg"><label>密钥路径</label><input id="mKey" value="${esc(s.keyPath||'')}"></div></div>
   </div>`,
   [{label:'取消',cls:'btn-g',fn:'closeModal()'},{label:'保存',cls:'btn-p',fn:`saveSrv('${id}')`}])}
-async function saveSrv(id){const authSel=document.querySelectorAll('.auth-section .radio-opt.sel');const authType=authSel.length&&authSel[authSel.length-1].textContent.includes('密钥')?'key':'password';await fetch('/api/servers/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:v('mName'),host:v('mHost'),port:parseInt(v('mPort'))||22,user:v('mUser'),auth:authType,password:authType==='password'?v('mPwd'):'',keyPath:authType==='key'?v('mKey'):''})});closeModal();loadServers();toast('已保存','ok')}
-async function delSrv(id){if(!confirm('删除此服务器？'))return;await fetch('/api/servers/'+id,{method:'DELETE'});loadServers();toast('已删除','ok')}
+async function saveSrv(id){const authSel=document.querySelectorAll('.auth-section .radio-opt.sel');const authType=authSel.length&&authSel[authSel.length-1].textContent.includes('密钥')?'key':'password';await fetch(BP+'/api/servers/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:v('mName'),host:v('mHost'),port:parseInt(v('mPort'))||22,user:v('mUser'),auth:authType,password:authType==='password'?v('mPwd'):'',keyPath:authType==='key'?v('mKey'):''})});closeModal();loadServers();toast('已保存','ok')}
+async function delSrv(id){if(!confirm('删除此服务器？'))return;await fetch(BP+'/api/servers/'+id,{method:'DELETE'});loadServers();toast('已删除','ok')}
 
 // ─── Modal ───
 function mkModal(title,body,btns){const b=btns.map((x,i)=>`<button class="btn ${x.cls}" id="mBtn${i}" onclick="mBtnClick(this,'${x.fn}')">${x.label}</button>`).join('');document.getElementById('modals').innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="modal-head"><h3>${title}</h3><button class="hdr-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button></div><div class="modal-body">${body}</div><div class="modal-foot">${b}</div></div></div>`}
@@ -545,7 +546,7 @@ term.attachCustomKeyEventHandler(ev=>{
   return true;
 });
 pane.addEventListener('mouseup',()=>{const sel=term.getSelection();if(sel){navigator.clipboard.writeText(sel).catch(()=>{})}});
-pane.addEventListener('dblclick',()=>{const sel=term.getSelection();if(sel){navigator.clipboard.writeText(sel).catch(()=>{});toast('已复制','ok')}});const proto=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${proto}//${location.host}?tab=${tabId}`);ws.onopen=()=>{document.getElementById('sDot').classList.add('on');fit.fit();ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}))};
+pane.addEventListener('dblclick',()=>{const sel=term.getSelection();if(sel){navigator.clipboard.writeText(sel).catch(()=>{});toast('已复制','ok')}});const proto=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${proto}//${location.host}${BP}/ws?tab=${tabId}`);ws.onopen=()=>{document.getElementById('sDot').classList.add('on');fit.fit();ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}))};
 ws.onmessage=e=>{
   const d=e.data;
   // Check if it's a JSON control message (exit)
@@ -701,7 +702,7 @@ function vkbPress(k){
 })();
 
 // ─── Quick Commands ───
-async function loadCommands(){try{commands=await(await fetch('/api/commands')).json()}catch(e){commands=[]}renderQCmds();renderCommands()}
+async function loadCommands(){try{commands=await(await fetch(BP+'/api/commands')).json()}catch(e){commands=[]}renderQCmds();renderCommands()}
 function renderQCmds(){const el=document.getElementById('qCmds');if(!commands.length){el.innerHTML='<div style="padding:14px;text-align:center;color:var(--text3);font-size:11px">暂无命令</div>';return}el.innerHTML=commands.map(c=>`<div class="sb-item"><span class="sb-name">${esc(c.name)}</span><span class="sb-cmd">${esc(c.command)}</span><button class="sb-run" onclick="runCmd('${c.id}')" title="执行"><i class="fa-solid fa-play"></i></button></div>`).join('')}
 function runCmd(id){const cmd=commands.find(c=>c.id===id);if(!cmd)return;if(!activeTabId||!tabs.length){toast('请先打开终端','err');return}const tab=tabs.find(t=>t.id===activeTabId);if(tab&&tab.ws&&tab.ws.readyState===1&&tab.term){goPage('terminal');setTimeout(()=>{tab.fitAddon&&tab.fitAddon.fit();tab.term.focus();tab.ws.send(cmd.command+'\n');toast('已发送: '+cmd.name,'ok')},100)}else toast('终端未连接','err')}
 
@@ -726,18 +727,18 @@ function showEditCmd(id){const c=commands.find(x=>x.id===id);if(!c)return;mkModa
   <div class="fg"><label>分类</label><select id="mCCat">${['general','system','network','docker','git','custom'].map(v=>`<option value="${v}" ${c.category===v?'selected':''}>${v}</option>`).join('')}</select></div>
   <div class="fg"><label>命令</label><textarea id="mCCode" rows="4" style="font-family:monospace">${esc(c.command)}</textarea></div>`,
   [{label:'取消',cls:'btn-g',fn:'closeModal()'},{label:'保存',cls:'btn-p',fn:`saveCmd('${id}')`}])}
-async function addCmd(){const name=v('mCName'),command=v('mCCode'),category=v('mCCat');if(!name||!command)return toast('名称和命令不能为空','err');await fetch('/api/commands',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,command,category})});closeModal();loadCommands();toast('已添加','ok')}
-async function saveCmd(id){const name=v('mCName'),command=v('mCCode'),category=v('mCCat');if(!name||!command)return toast('不能为空','err');await fetch('/api/commands/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,command,category})});closeModal();loadCommands();toast('已保存','ok')}
+async function addCmd(){const name=v('mCName'),command=v('mCCode'),category=v('mCCat');if(!name||!command)return toast('名称和命令不能为空','err');await fetch(BP+'/api/commands',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,command,category})});closeModal();loadCommands();toast('已添加','ok')}
+async function saveCmd(id){const name=v('mCName'),command=v('mCCode'),category=v('mCCat');if(!name||!command)return toast('不能为空','err');await fetch(BP+'/api/commands/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,command,category})});closeModal();loadCommands();toast('已保存','ok')}
 function copyCmd(id){const c=commands.find(x=>x.id===id);if(c){navigator.clipboard.writeText(c.command);toast('已复制','ok')}}
-async function delCmd(id){await fetch('/api/commands/'+id,{method:'DELETE'});loadCommands();toast('已删除','ok')}
+async function delCmd(id){await fetch(BP+'/api/commands/'+id,{method:'DELETE'});loadCommands();toast('已删除','ok')}
 
 // ─── Notes ───
-async function loadNotes(){try{notes=await(await fetch('/api/notes')).json()}catch(e){notes=[]}renderNotesList()}
+async function loadNotes(){try{notes=await(await fetch(BP+'/api/notes')).json()}catch(e){notes=[]}renderNotesList()}
 function renderNotesList(){const el=document.getElementById('nsList');if(!notes.length){el.innerHTML='<div style="padding:14px;text-align:center;color:var(--text3);font-size:11px">暂无笔记</div>';return}el.innerHTML=notes.map(n=>`<div class="ns-item ${n.id===currentNoteId?'on':''}" onclick="selNote('${n.id}')"><div class="ni-t">${esc(n.title)}</div><div class="ni-d">${new Date(n.updatedAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')}
 function selNote(id){currentNoteId=id;const n=notes.find(x=>x.id===id);if(!n)return;document.getElementById('nTitle').value=n.title;document.getElementById('nContent').value=n.content||'';document.getElementById('nTitle').style.display='';document.getElementById('nContent').style.display='';document.getElementById('noteEmpty').style.display='none';renderNotesList()}
-async function createNote(){const res=await fetch('/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'新笔记',content:''})});const n=await res.json();await loadNotes();selNote(n.id);toast('已创建','ok')}
+async function createNote(){const res=await fetch(BP+'/api/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'新笔记',content:''})});const n=await res.json();await loadNotes();selNote(n.id);toast('已创建','ok')}
 let noteTimer=null;document.getElementById('nTitle').addEventListener('input',()=>{clearTimeout(noteTimer);noteTimer=setTimeout(saveNote,1200)});document.getElementById('nContent').addEventListener('input',()=>{clearTimeout(noteTimer);noteTimer=setTimeout(saveNote,1200)});
-async function saveNote(){if(!currentNoteId)return;await fetch('/api/notes/'+currentNoteId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:v('nTitle')||'未命名',content:v('nContent')})});loadNotes()}
+async function saveNote(){if(!currentNoteId)return;await fetch(BP+'/api/notes/'+currentNoteId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:v('nTitle')||'未命名',content:v('nContent')})});loadNotes()}
 
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 </script>
