@@ -4,6 +4,12 @@ set -e
 PORT=9111
 REPO="https://github.com/mubaiqq/webssh-terminal.git"
 INSTALL_DIR="$HOME/webssh-terminal"
+APP_NAME="webssh-terminal"
+
+# ── 国内加速配置 ──
+NPM_REGISTRY="https://registry.npmmirror.com"
+GH_PROXY="https://ghfast.top"
+ENABLE_TUNNEL="${ENABLE_TUNNEL:-true}"
 
 echo ""
 echo "  ╔══════════════════════════════╗"
@@ -22,7 +28,12 @@ else
     echo "   ✓ Already cloned, pulling latest..."
     cd "$INSTALL_DIR" && git pull 2>&1 | tail -2
   else
-    git clone "$REPO" "$INSTALL_DIR" 2>&1 | tail -3
+    CLONE_URL="${GH_PROXY}/${REPO}"
+    echo "   Trying proxy: $CLONE_URL"
+    if ! git clone "$CLONE_URL" "$INSTALL_DIR" 2>&1 | tail -3; then
+      echo "   ⚠ Proxy failed, falling back to direct clone..."
+      git clone "$REPO" "$INSTALL_DIR" 2>&1 | tail -3
+    fi
     cd "$INSTALL_DIR"
   fi
   DIR="$INSTALL_DIR"
@@ -37,60 +48,82 @@ if ! command -v node &>/dev/null; then
 fi
 echo "   ✓ Node.js $(node -v)"
 
-# 2. Install deps
+# 2. Install dependencies (使用镜像加速)
 echo "📦 Installing dependencies..."
 if [ ! -d "node_modules" ]; then
-  npm install --production 2>&1 | tail -3
+  npm install --production --registry="$NPM_REGISTRY" 2>&1 | tail -3
 else
   echo "   ✓ node_modules exists"
 fi
 
-# 3. Kill existing
+# 3. Install pm2 (进程守护)
+echo "🔧 Setting up pm2..."
+if ! command -v pm2 &>/dev/null; then
+  npm install -g pm2 --registry="$NPM_REGISTRY" 2>&1 | tail -3
+fi
+echo "   ✓ pm2 $(pm2 -v)"
+
+# 4. Clean up old processes
 echo "🧹 Cleaning port $PORT..."
-fuser -k $PORT/tcp 2>/dev/null || true
-pkill -f "node.*server.js" 2>/dev/null || true
+pm2 delete "$APP_NAME" 2>/dev/null || true
 pkill -f "ssh.*serveo.net" 2>/dev/null || true
+fuser -k $PORT/tcp 2>/dev/null || true
 sleep 1
 
-# 4. Start server
-echo "🚀 Starting server on port $PORT..."
-nohup node server.js > server.log 2>&1 &
-SERVER_PID=$!
-sleep 2
+# 5. Start with pm2 (进程守护 + 崩溃自重启)
+echo "🚀 Starting server with pm2..."
+pm2 start server.js --name "$APP_NAME" \
+  --max-memory-restart 300M \
+  --exp-backoff-restart-delay=100 \
+  --time \
+  2>&1 | tail -5
 
-if ! kill -0 $SERVER_PID 2>/dev/null; then
-  echo "❌ Server failed. Check: cat $DIR/server.log"
-  exit 1
+# Save pm2 process list
+pm2 save 2>&1 | tail -1
+
+# 6. Setup pm2-startup (开机自启)
+echo "⚡ Configuring auto-start on boot..."
+PM2_STARTUP=$(pm2 startup 2>&1)
+if echo "$PM2_STARTUP" | grep -q "sudo"; then
+  # Extract and run the startup command
+  STARTUP_CMD=$(echo "$PM2_STARTUP" | grep "sudo" | head -1)
+  echo "   Running: $STARTUP_CMD"
+  eval "$STARTUP_CMD" 2>&1 | tail -2
 fi
-echo "   ✓ Server running (PID: $SERVER_PID)"
+pm2 save 2>&1 | tail -1
+echo "   ✓ Auto-start configured"
 
-# 5. Detect public IP
+# 7. Detect public IP (优先国内服务)
 echo "🌐 Detecting network..."
 PUBLIC_IP=""
-for svc in "ip.sb" "ifconfig.me" "ipinfo.io/ip" "icanhazip.com"; do
-  PUBLIC_IP=$(curl -s --connect-timeout 3 "https://$svc" 2>/dev/null | tr -d '[:space:]')
-  if [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    break
-  fi
-  PUBLIC_IP=""
+for svc in "myip.ipip.net" "ip.sb" "ifconfig.me" "ipinfo.io/ip" "icanhazip.com"; do
+  PUBLIC_IP=$(curl -s --connect-timeout 2 "https://$svc" 2>/dev/null | grep -oP '(\d+\.){3}\d+' | head -1)
+  [ -n "$PUBLIC_IP" ] && break
 done
 
-# Get local LAN IP
 LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
-# 6. Create tunnel
-echo "🔗 Creating tunnel via serveo.net..."
-nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -R 80:localhost:$PORT serveo.net > tunnel.log 2>&1 &
-TUNNEL_PID=$!
-
-# Wait for tunnel URL
+# 8. Create tunnel (可选)
 TUNNEL_URL=""
-for i in $(seq 1 15); do
-  sleep 2
-  TUNNEL_URL=$(grep -oP 'https?://[a-zA-Z0-9.-]+\.serveo[a-z.]*' tunnel.log 2>/dev/null | head -1)
-  [ -n "$TUNNEL_URL" ] && break
-done
+TUNNEL_PID=""
+if [ "$ENABLE_TUNNEL" = "true" ]; then
+  echo "🔗 Creating tunnel via serveo.net..."
+  nohup ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -R 80:localhost:$PORT serveo.net > tunnel.log 2>&1 &
+  TUNNEL_PID=$!
 
+  for i in $(seq 1 10); do
+    sleep 2
+    TUNNEL_URL=$(grep -oP 'https?://[a-zA-Z0-9.-]+\.serveo[a-z.]*' tunnel.log 2>/dev/null | head -1)
+    [ -n "$TUNNEL_URL" ] && break
+  done
+  if [ -z "$TUNNEL_URL" ]; then
+    echo "   ⚠ Tunnel timeout, skipping (server still works via IP)"
+  fi
+else
+  echo "⏭  Tunnel disabled (ENABLE_TUNNEL=false)"
+fi
+
+# 9. Show status
 echo ""
 echo "  ╔═══════════════════════════════════════════════╗"
 echo "  ║              ✅ Deploy Complete!               ║"
@@ -107,9 +140,15 @@ if [ -n "$TUNNEL_URL" ]; then
 fi
 echo "  ╠═══════════════════════════════════════════════╣"
 echo "  ║  Default password: 123456                     ║"
+echo "  ╠═══════════════════════════════════════════════╣"
+echo "  ║  🔒 pm2 守护进程: ✅                          ║"
+echo "  ║  ⚡ 开机自启:     ✅                          ║"
 echo "  ╚═══════════════════════════════════════════════╝"
 echo ""
-echo "  Server PID: $SERVER_PID | Tunnel PID: $TUNNEL_PID"
-echo "  Logs: tail -f $DIR/server.log"
-echo "  Stop: bash stop.sh"
+echo "  常用命令："
+echo "    pm2 status          # 查看状态"
+echo "    pm2 logs            # 查看日志"
+echo "    pm2 restart         # 重启服务"
+echo "    pm2 stop            # 停止服务"
+echo "    bash stop.sh        # 停止所有（含隧道）"
 echo ""
