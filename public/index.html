@@ -140,9 +140,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .sb-item .sb-name{font-size:11px;flex-shrink:0}
 .sb-item .sb-run{width:20px;height:20px;border-radius:4px;border:none;background:var(--green);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;opacity:0;transition:all .1s;flex-shrink:0}
 .sb-item:hover .sb-run{opacity:1}
-.term-body{flex:1;position:relative;overflow:hidden;min-height:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.15)}
-.term-card{position:relative;width:calc(100% - 16px);height:calc(100% - 60px);border-radius:var(--radius-lg);overflow:hidden;background:rgba(0,0,0,0.25);border:1px solid var(--border);padding:var(--radius-lg)}
-.term-pane{position:relative;width:100%;height:100%;display:none;overflow:hidden;border-radius:calc(var(--radius-lg) - 4px);background:rgba(0,0,0,0.3)}
+.term-body{flex:1;position:relative;overflow:hidden;min-height:0}
+.term-pane{position:absolute;inset:0;display:none;overflow:hidden}
 .term-pane.on{display:block}
 .term-pane .xterm{height:100%!important;background:transparent!important}
 .term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:scroll!important}
@@ -342,7 +341,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
           <div class="sb-hd"><i class="fa-solid fa-bolt"></i> 快捷命令</div>
           <div class="sb-list" id="qCmds"></div>
         </aside>
-        <div class="term-body" id="termBody"><div class="term-card" id="termCard"></div></div>
+        <div class="term-body" id="termBody"></div></div>
       </div>
     </div>
     <div class="page pg-cmds" id="pg-commands">
@@ -580,23 +579,19 @@ function closeModal(){document.getElementById('modals').innerHTML=''}
 function v(id){return(document.getElementById(id)||{}).value||''}
 
 // ─── Multi-Tab Terminals ───
-function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);
-const card=document.getElementById('termCard');
-const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;card.appendChild(pane);tab.paneEl=pane;
+function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);
+const body=document.getElementById('termBody');
+const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;body.appendChild(pane);tab.paneEl=pane;
 const fs=parseInt(document.getElementById('sFontSize').value)||14;
 const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:2000,convertEol:true,smoothScrollDuration:120});
-const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);
-tab.term=term;tab.fitAddon=fit;
-
-// Fit terminal to card — use only 60% of height, keep 40% empty at bottom
+term.open(pane);tab.term=term;
 function doFit(){
-  const pw=pane.clientWidth,ph=pane.clientHeight;
-  if(pw<=0||ph<=0)return;
-  const dims=term._core._renderService?.dimensions;
-  const cellH=dims?.css?.cell?.height||Math.ceil(fs*1.2);
-  const cellW=dims?.css?.cell?.width||Math.ceil(fs*0.6);
-  const usableH=Math.floor(ph*0.6);
-  const cols=Math.max(20,Math.floor(pw/cellW));
+  const bh=body.clientHeight,bw=body.clientWidth;
+  if(bh<=0||bw<=0)return;
+  const usableH=bh-80;
+  const cellH=Math.ceil(fs*1.2);
+  const cellW=Math.ceil(fs*0.6);
+  const cols=Math.max(20,Math.floor(bw/cellW));
   const rows=Math.max(5,Math.floor(usableH/cellH));
   if(cols!==term.cols||rows!==term.rows){
     term.resize(cols,rows);
@@ -604,10 +599,7 @@ function doFit(){
   }
 }
 setTimeout(()=>{doFit();term.scrollBottom();term.focus()},100);
-
-// ResizeObserver on the card — re-fit whenever card size changes
-const ro=new ResizeObserver(()=>doFit());ro.observe(card);tab._ro=ro;
-tab._doFit=doFit;
+const ro=new ResizeObserver(()=>doFit());ro.observe(body);tab._ro=ro;tab._doFit=doFit;
 // Selection copy: double-click to select + copy, right-click to copy
 term.attachCustomKeyEventHandler(ev=>{
   // Ctrl+Shift+C = copy selection
