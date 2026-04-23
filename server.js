@@ -133,6 +133,31 @@ api.put('/settings', (req, res) => {
   res.json({ ...updated, password: undefined });
 });
 
+// ── Export / Import ──
+api.get('/export', (req, res) => {
+  const settings = readJSON(FILES.settings, {});
+  res.json({
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    servers: readJSON(FILES.servers),
+    commands: readJSON(FILES.commands),
+    notes: readJSON(FILES.notes),
+    settings: { ...settings, password: undefined },
+  });
+});
+api.post('/import', (req, res) => {
+  const data = req.body;
+  if (!data || typeof data !== 'object') return res.status(400).json({ error: 'invalid data' });
+  if (Array.isArray(data.servers)) writeJSON(FILES.servers, data.servers);
+  if (Array.isArray(data.commands)) writeJSON(FILES.commands, data.commands);
+  if (Array.isArray(data.notes)) writeJSON(FILES.notes, data.notes);
+  if (data.settings && typeof data.settings === 'object') {
+    const current = readJSON(FILES.settings, { password: '123456' });
+    writeJSON(FILES.settings, { ...current, ...data.settings, password: current.password });
+  }
+  res.json({ ok: true, counts: { servers: (data.servers||[]).length, commands: (data.commands||[]).length, notes: (data.notes||[]).length } });
+});
+
 // ── Mount routes ──
 app.use(`${BASE_PATH}/api`, api);
 

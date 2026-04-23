@@ -143,9 +143,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .term-body{flex:1;position:relative;overflow:hidden}
 .term-pane{position:absolute;inset:0;display:none}
 .term-pane.on{display:block}
-.term-pane .xterm{height:100%;background:transparent!important}
-.term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:auto!important}
-.term-pane .xterm .xterm-screen{background:transparent!important}
+.term-pane .xterm{height:100%!important;background:transparent!important;display:flex!important;flex-direction:column!important}
+.term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:auto!important;flex:1!important;min-height:0!important}
+.term-pane .xterm .xterm-screen{background:transparent!important;flex-shrink:0!important}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar{width:8px}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar-track{background:rgba(255,255,255,0.03);border-radius:4px}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:4px}
@@ -391,6 +391,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
     <div class="sp-row"><label>修改密码</label><input type="password" id="sNewPwd" placeholder="新密码" style="width:120px;font-size:11px;padding:4px 8px"></div>
     <div class="sp-row" style="margin-top:6px"><label></label><button class="btn btn-sm btn-p" onclick="changePwd()">保存密码</button></div>
   </div>
+  <div class="sp-sec">
+    <div class="sp-lbl">数据备份</div>
+    <div class="sp-row" style="gap:8px;justify-content:flex-start">
+      <button class="btn btn-sm btn-p" onclick="exportData()"><i class="fa-solid fa-download"></i> 导出</button>
+      <button class="btn btn-sm btn-g" onclick="document.getElementById('importFile').click()"><i class="fa-solid fa-upload"></i> 导入</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+    </div>
+  </div>
 </div>
 
 <div class="toasts" id="toasts"></div>
@@ -487,6 +495,34 @@ async function changePwd(){
   toast('密码已更新','ok');
 }
 
+async function exportData(){
+  try{
+    const res=await fetch(BP+'/api/export');
+    const data=await res.json();
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='webssh-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    a.click();URL.revokeObjectURL(url);
+    toast('已导出','ok');
+  }catch(e){toast('导出失败','err')}
+}
+async function importData(input){
+  const file=input.files[0];if(!file)return;
+  if(!confirm('导入将覆盖当前的服务器、命令、笔记和设置数据，确定？')){input.value='';return}
+  try{
+    const text=await file.text();
+    const data=JSON.parse(text);
+    const res=await fetch(BP+'/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const result=await res.json();
+    if(result.ok){
+      toast(`已导入: ${result.counts.servers}服务器 ${result.counts.commands}命令 ${result.counts.notes}笔记`,'ok');
+      await Promise.all([loadServers(),loadCommands(),loadNotes(),loadSettings()]);
+    }else{toast('导入失败: '+(result.error||'未知错误'),'err')}
+  }catch(e){toast('文件格式错误','err')}
+  input.value='';
+}
+
 function goPage(p){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.p===p));document.querySelectorAll('.page').forEach(pg=>pg.classList.toggle('active',pg.id==='pg-'+p));if(p==='terminal'&&activeTabId){const t=tabs.find(x=>x.id===activeTabId);if(t&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();t.term&&t.term.focus()},50)}if(p==='commands')renderCommands();if(p==='notes')renderNotesList()}
 
 // ─── Servers ───
@@ -562,22 +598,23 @@ pane.addEventListener('mouseup',()=>{const sel=term.getSelection();if(sel){navig
 pane.addEventListener('dblclick',()=>{const sel=term.getSelection();if(sel){navigator.clipboard.writeText(sel).catch(()=>{});toast('已复制','ok')}});const proto=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${proto}//${location.host}${BP}/ws?tab=${tabId}`);ws.onopen=()=>{document.getElementById('sDot').classList.add('on');fit.fit();ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}))};
 ws.onmessage=e=>{
   const d=e.data;
-  // Check if it's a JSON control message (exit)
   if(d[0]==='{'){
     try{const m=JSON.parse(d);if(m.type==='exit'){term.write('\r\n\x1b[33m[已退出]\x1b[0m\r\n');return}}catch(err){}
   }
-  // Otherwise it's raw terminal output - write directly
   term.write(d);
-  // Auto-scroll only if user is near the bottom (allow manual scroll-up)
-  const buffer=term.buffer.active;
-  const scrollBottom=buffer.baseY+buffer.cursorY;
-  const viewportHeight=term.rows;
-  if(scrollBottom<=buffer.baseY+viewportHeight+2){
-    term.scrollBottom();
-  }
+  if(!tab._userScrolledUp)term.scrollBottom();
 };
 ws.onclose=()=>{document.getElementById('sDot').classList.remove('on')};
-term.onData(d=>{if(ws.readyState===1)ws.send(d)});tab.ws=ws;const onResize=()=>{if(tab.fitAddon)tab.fitAddon.fit()};window.addEventListener('resize',onResize);tab._onResize=onResize}
+// Track if user scrolled up manually
+tab._userScrolledUp=false;
+setTimeout(()=>{
+  const vp=pane.querySelector('.xterm-viewport');
+  if(vp)vp.addEventListener('scroll',()=>{
+    const atBottom=vp.scrollTop+vp.clientHeight>=vp.scrollHeight-20;
+    tab._userScrolledUp=!atBottom;
+  });
+},200);
+term.onData(d=>{tab._userScrolledUp=false;if(ws.readyState===1)ws.send(d)});tab.ws=ws;const onResize=()=>{if(tab.fitAddon)tab.fitAddon.fit()};window.addEventListener('resize',onResize);tab._onResize=onResize}
 
 function activateTab(tabId){activeTabId=tabId;tabs.forEach(t=>{const pane=document.getElementById('pane_'+t.id);if(pane)pane.classList.toggle('on',t.id===tabId);if(t.id===tabId&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();if(t.term){t.term.scrollBottom();t.term.focus()}},80)});renderTabs()}
 function closeTab(tabId){const idx=tabs.findIndex(t=>t.id===tabId);if(idx===-1)return;const tab=tabs[idx];if(tab._onResize)window.removeEventListener('resize',tab._onResize);if(tab.ws)tab.ws.close();if(tab.term)tab.term.dispose();const pane=document.getElementById('pane_'+tabId);if(pane)pane.remove();tabs.splice(idx,1);if(activeTabId===tabId){activeTabId=tabs.length?tabs[Math.min(idx,tabs.length-1)].id:null;if(activeTabId)activateTab(activeTabId)}renderTabs();if(!tabs.length)document.getElementById('sDot').classList.remove('on')}
