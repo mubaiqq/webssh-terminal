@@ -659,14 +659,13 @@ function renderVKBPage(){
     }).join('')+'</div>').join('');
   }
 
-  // Tab 栏：粘贴放最左边，然后是其他页
+  // Tab 栏：正常顺序，粘贴放最后
   const pasteIdx=VKB_PAGES.findIndex(p=>p.type==='paste');
-  const pasteTab=`<button class="${vkbPage===pasteIdx?'on':''}" onclick="vkbGoPage(${pasteIdx})">📋 粘贴</button>`;
-  const otherTabs=VKB_PAGES.map((p,i)=>{
-    if(p.type==='paste')return '';
-    return `<button class="${i===vkbPage?'on':''}" onclick="vkbGoPage(${i})">${p.name}</button>`;
+  const tabsHtml=VKB_PAGES.map((p,i)=>{
+    const label=p.type==='paste'?'📋 '+p.name:p.name;
+    return `<button class="${i===vkbPage?'on':''}" onclick="vkbGoPage(${i})">${label}</button>`;
   }).join('');
-  pg.innerHTML=pasteTab+otherTabs;
+  pg.innerHTML=tabsHtml;
 }
 
 function vkbGoPage(n){vkbPage=n;renderVKBPage()}
