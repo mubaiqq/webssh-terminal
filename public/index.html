@@ -140,12 +140,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .sb-item .sb-name{font-size:11px;flex-shrink:0}
 .sb-item .sb-run{width:20px;height:20px;border-radius:4px;border:none;background:var(--green);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;opacity:0;transition:all .1s;flex-shrink:0}
 .sb-item:hover .sb-run{opacity:1}
-.term-body{flex:1;position:relative;overflow:hidden;min-height:0}
+.term-body{flex:1;position:relative;overflow:hidden;min-height:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.15)}
+.term-card{position:relative;width:calc(100% - 16px);height:calc(100% - 16px);border-radius:var(--radius-lg);overflow:hidden;background:rgba(0,0,0,0.25);border:1px solid var(--border)}
 .term-pane{position:absolute;inset:0;display:none;overflow:hidden}
 .term-pane.on{display:block}
-.term-pane .xterm{height:100%!important;max-height:100%!important;background:transparent!important;overflow:hidden!important}
-.term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:auto!important;max-height:100%!important;height:100%!important}
-.term-pane .xterm .xterm-screen{background:transparent!important;max-height:100%!important;overflow:hidden!important}
+.term-pane .xterm{height:100%!important;background:transparent!important}
+.term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:scroll!important}
+.term-pane .xterm .xterm-screen{background:transparent!important}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar{width:8px}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar-track{background:rgba(255,255,255,0.03);border-radius:4px}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:4px}
@@ -341,7 +342,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
           <div class="sb-hd"><i class="fa-solid fa-bolt"></i> 快捷命令</div>
           <div class="sb-list" id="qCmds"></div>
         </aside>
-        <div class="term-body" id="termBody"></div>
+        <div class="term-body" id="termBody"><div class="term-card" id="termCard"></div></div>
       </div>
     </div>
     <div class="page pg-cmds" id="pg-commands">
@@ -523,7 +524,7 @@ async function importData(input){
   input.value='';
 }
 
-function goPage(p){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.p===p));document.querySelectorAll('.page').forEach(pg=>pg.classList.toggle('active',pg.id==='pg-'+p));if(p==='terminal'&&activeTabId){const t=tabs.find(x=>x.id===activeTabId);if(t&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();t.term&&t.term.focus()},50)}if(p==='commands')renderCommands();if(p==='notes')renderNotesList()}
+function goPage(p){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.p===p));document.querySelectorAll('.page').forEach(pg=>pg.classList.toggle('active',pg.id==='pg-'+p));if(p==='terminal'&&activeTabId){const t=tabs.find(x=>x.id===activeTabId);if(t&&t._doFit)setTimeout(()=>{t._doFit();t.term&&t.term.focus()},50)}if(p==='commands')renderCommands();if(p==='notes')renderNotesList()}
 
 // ─── Servers ───
 async function loadServers(){try{servers=await(await fetch(BP+'/api/servers')).json()}catch(e){servers=[]}renderServers()}
@@ -579,9 +580,36 @@ function closeModal(){document.getElementById('modals').innerHTML=''}
 function v(id){return(document.getElementById(id)||{}).value||''}
 
 // ─── Multi-Tab Terminals ───
-function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:2000,convertEol:true,smoothScrollDuration:120,lineHeight:1.2});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);setTimeout(()=>{fit.fit();term.scrollBottom();term.focus()},80);tab.term=term;tab.fitAddon=fit;
-// Enforce terminal size matches container — prevent overflow
-const ro=new ResizeObserver(()=>{if(!tab.term||!tab.paneEl)return;const h=tab.paneEl.clientHeight,w=tab.paneEl.clientWidth;if(h<=0||w<=0)return;const cellH=tab.term._core._renderService.dimensions.css.cell.height||18;const cellW=tab.term._core._renderService.dimensions.css.cell.width||9;if(!cellH||!cellW)return;const cols=Math.floor(w/cellW);const rows=Math.floor(h/cellH);if(cols>0&&rows>0&&(cols!==tab.term.cols||rows!==tab.term.rows)){tab.term.resize(cols,rows);if(tab.ws&&tab.ws.readyState===1)tab.ws.send(JSON.stringify({type:'resize',cols,rows}))}});ro.observe(pane);tab._ro=ro;
+function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);
+const card=document.getElementById('termCard');
+const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;card.appendChild(pane);tab.paneEl=pane;
+const fs=parseInt(document.getElementById('sFontSize').value)||14;
+const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:2000,convertEol:true,smoothScrollDuration:120});
+const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);
+tab.term=term;tab.fitAddon=fit;
+
+// Fit terminal to card — use only 60% of height, keep 40% empty at bottom
+function doFit(){
+  const cw=card.clientWidth,ch=card.clientHeight;
+  if(cw<=0||ch<=0)return;
+  // Measure cell dimensions
+  const dims=term._core._renderService?.dimensions;
+  const cellH=dims?.css?.cell?.height||Math.ceil(fs*1.2);
+  const cellW=dims?.css?.cell?.width||Math.ceil(fs*0.6);
+  // Use 60% of card height for terminal rows
+  const usableH=Math.floor(ch*0.6);
+  const cols=Math.max(20,Math.floor(cw/cellW));
+  const rows=Math.max(5,Math.floor(usableH/cellH));
+  if(cols!==term.cols||rows!==term.rows){
+    term.resize(cols,rows);
+    if(tab.ws&&tab.ws.readyState===1)tab.ws.send(JSON.stringify({type:'resize',cols,rows}));
+  }
+}
+setTimeout(()=>{doFit();term.scrollBottom();term.focus()},100);
+
+// ResizeObserver on the card — re-fit whenever card size changes
+const ro=new ResizeObserver(()=>doFit());ro.observe(card);tab._ro=ro;
+tab._doFit=doFit;
 // Selection copy: double-click to select + copy, right-click to copy
 term.attachCustomKeyEventHandler(ev=>{
   // Ctrl+Shift+C = copy selection
@@ -616,9 +644,9 @@ setTimeout(()=>{
     tab._userScrolledUp=!atBottom;
   });
 },200);
-term.onData(d=>{tab._userScrolledUp=false;if(ws.readyState===1)ws.send(d)});tab.ws=ws;const onResize=()=>{if(tab.fitAddon)tab.fitAddon.fit()};window.addEventListener('resize',onResize);tab._onResize=onResize}
+term.onData(d=>{tab._userScrolledUp=false;if(ws.readyState===1)ws.send(d)});tab.ws=ws;const onResize=()=>{if(tab._doFit)tab._doFit()};window.addEventListener('resize',onResize);tab._onResize=onResize}
 
-function activateTab(tabId){activeTabId=tabId;tabs.forEach(t=>{const pane=document.getElementById('pane_'+t.id);if(pane)pane.classList.toggle('on',t.id===tabId);if(t.id===tabId&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();if(t.term){t.term.scrollBottom();t.term.focus()}},80)});renderTabs()}
+function activateTab(tabId){activeTabId=tabId;tabs.forEach(t=>{const pane=document.getElementById('pane_'+t.id);if(pane)pane.classList.toggle('on',t.id===tabId);if(t.id===tabId&&t._doFit)setTimeout(()=>{t._doFit();if(t.term){t.term.scrollBottom();t.term.focus()}},80)});renderTabs()}
 function closeTab(tabId){const idx=tabs.findIndex(t=>t.id===tabId);if(idx===-1)return;const tab=tabs[idx];if(tab._ro)tab._ro.disconnect();if(tab._onResize)window.removeEventListener('resize',tab._onResize);if(tab.ws)tab.ws.close();if(tab.term)tab.term.dispose();const pane=document.getElementById('pane_'+tabId);if(pane)pane.remove();tabs.splice(idx,1);if(activeTabId===tabId){activeTabId=tabs.length?tabs[Math.min(idx,tabs.length-1)].id:null;if(activeTabId)activateTab(activeTabId)}renderTabs();if(!tabs.length)document.getElementById('sDot').classList.remove('on')}
 
 function renderTabs(){const el=document.getElementById('termTabs');let h=tabs.map(t=>`<div class="t-tab ${t.id===activeTabId?'on':''}" onclick="activateTab('${t.id}')">
@@ -626,7 +654,7 @@ function renderTabs(){const el=document.getElementById('termTabs');let h=tabs.ma
   <button class="t-x" onclick="event.stopPropagation();closeTab('${t.id}')"><i class="fa-solid fa-xmark"></i></button></div>`).join('');h+=`<button class="t-add" onclick="goPage('servers')" title="新连接"><i class="fa-solid fa-plus"></i></button>`;el.innerHTML=h}
 
 function termTheme(){const dk=settings.theme==='dark';return dk?{background:'rgba(0,0,0,0)',foreground:'#e8e8f0',cursor:'#7c6cf0',cursorAccent:'#0f0f1a',selectionBackground:'rgba(124,108,240,0.3)',selectionForeground:'#fff',black:'#1a1a2e',red:'#f06060',green:'#3dd68c',yellow:'#f8d860',blue:'#58a6ff',magenta:'#a89cf8',cyan:'#60d8d8',white:'#e8e8f0',brightBlack:'#5a5a78',brightRed:'#f08080',brightGreen:'#50e8a0',brightYellow:'#fce080',brightBlue:'#80b8ff',brightMagenta:'#c0b0ff',brightCyan:'#80e8e8',brightWhite:'#fff'}:{background:'rgba(0,0,0,0)',foreground:'#1c1c30',cursor:'#6c5ce7',cursorAccent:'#f8f9fa',selectionBackground:'rgba(108,92,231,0.2)',black:'#1c1c30',red:'#e17055',green:'#00b894',yellow:'#f0c040',blue:'#0984e3',magenta:'#6c5ce7',cyan:'#00cec9',white:'#1c1c30',brightBlack:'#606080',brightRed:'#e17055',brightGreen:'#00b894',brightYellow:'#f0c040',brightBlue:'#0984e3',brightMagenta:'#6c5ce7',brightCyan:'#00cec9',brightWhite:'#1c1c30'}}
-function applyTermOpts(){const fs=parseInt(document.getElementById('sFontSize').value)||14;tabs.forEach(t=>{if(t.term){t.term.options.fontSize=fs;if(t.fitAddon)t.fitAddon.fit()}})}
+function applyTermOpts(){const fs=parseInt(document.getElementById('sFontSize').value)||14;tabs.forEach(t=>{if(t.term){t.term.options.fontSize=fs;if(t._doFit)setTimeout(()=>t._doFit(),50)}})}
 
 // ─── Virtual Keyboard (Floating, Draggable, Paginated) ───
 const VKB_PAGES=[
@@ -817,7 +845,7 @@ function vkbPress(k){
 // ─── Quick Commands ───
 async function loadCommands(){try{commands=await(await fetch(BP+'/api/commands')).json()}catch(e){commands=[]}renderQCmds();renderCommands()}
 function renderQCmds(){const el=document.getElementById('qCmds');if(!commands.length){el.innerHTML='<div style="padding:14px;text-align:center;color:var(--text3);font-size:11px">暂无命令</div>';return}el.innerHTML=commands.map(c=>`<div class="sb-item"><span class="sb-name">${esc(c.name)}</span><span class="sb-cmd">${esc(c.command)}</span><button class="sb-run" onclick="runCmd('${c.id}')" title="执行"><i class="fa-solid fa-play"></i></button></div>`).join('')}
-function runCmd(id){const cmd=commands.find(c=>c.id===id);if(!cmd)return;if(!activeTabId||!tabs.length){toast('请先打开终端','err');return}const tab=tabs.find(t=>t.id===activeTabId);if(tab&&tab.ws&&tab.ws.readyState===1&&tab.term){goPage('terminal');setTimeout(()=>{tab.fitAddon&&tab.fitAddon.fit();tab.term.focus();tab.ws.send(cmd.command+'\n');toast('已发送: '+cmd.name,'ok')},100)}else toast('终端未连接','err')}
+function runCmd(id){const cmd=commands.find(c=>c.id===id);if(!cmd)return;if(!activeTabId||!tabs.length){toast('请先打开终端','err');return}const tab=tabs.find(t=>t.id===activeTabId);if(tab&&tab.ws&&tab.ws.readyState===1&&tab.term){goPage('terminal');setTimeout(()=>{tab._doFit&&tab._doFit();tab.term.focus();tab.ws.send(cmd.command+'\n');toast('已发送: '+cmd.name,'ok')},100)}else toast('终端未连接','err')}
 
 // ─── Commands Page ───
 function renderCommands(){const el=document.getElementById('cmdList');if(!commands.length){el.innerHTML='<div class="cmd-empty"><i class="fa-solid fa-code" style="font-size:24px;opacity:0.12;display:block;margin-bottom:6px"></i>暂无命令</div>';return}
