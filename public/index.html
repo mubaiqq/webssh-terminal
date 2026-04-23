@@ -88,8 +88,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .sdot.on{background:var(--green);box-shadow:0 0 6px rgba(61,214,140,0.5)}
 
 /* ─── Pages ─── */
-.main{flex:1;overflow:hidden}
-.page{height:100%;display:none}
+.main{flex:1;overflow:hidden;min-height:0}
+.page{height:100%;display:none;min-height:0;overflow:hidden}
 .page.active{display:flex;animation:fadeUp .2s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 
@@ -140,12 +140,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .sb-item .sb-name{font-size:11px;flex-shrink:0}
 .sb-item .sb-run{width:20px;height:20px;border-radius:4px;border:none;background:var(--green);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;opacity:0;transition:all .1s;flex-shrink:0}
 .sb-item:hover .sb-run{opacity:1}
-.term-body{flex:1;position:relative;overflow:hidden}
-.term-pane{position:absolute;inset:0;display:none}
+.term-body{flex:1;position:relative;overflow:hidden;min-height:0}
+.term-pane{position:absolute;inset:0;display:none;overflow:hidden}
 .term-pane.on{display:block}
-.term-pane .xterm{height:100%!important;background:transparent!important;display:flex!important;flex-direction:column!important}
-.term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:auto!important;flex:1!important;min-height:0!important}
-.term-pane .xterm .xterm-screen{background:transparent!important;flex-shrink:0!important}
+.term-pane .xterm{height:100%!important;max-height:100%!important;background:transparent!important;overflow:hidden!important}
+.term-pane .xterm .xterm-viewport{background:transparent!important;overflow-y:auto!important;max-height:100%!important;height:100%!important}
+.term-pane .xterm .xterm-screen{background:transparent!important;max-height:100%!important;overflow:hidden!important}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar{width:8px}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar-track{background:rgba(255,255,255,0.03);border-radius:4px}
 .term-pane .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.18);border-radius:4px}
@@ -579,7 +579,9 @@ function closeModal(){document.getElementById('modals').innerHTML=''}
 function v(id){return(document.getElementById(id)||{}).value||''}
 
 // ─── Multi-Tab Terminals ───
-function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:2000,convertEol:true,smoothScrollDuration:120});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);setTimeout(()=>{fit.fit();term.scrollBottom();term.focus()},80);tab.term=term;tab.fitAddon=fit;
+function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:2000,convertEol:true,smoothScrollDuration:120,lineHeight:1.2});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);setTimeout(()=>{fit.fit();term.scrollBottom();term.focus()},80);tab.term=term;tab.fitAddon=fit;
+// Enforce terminal size matches container — prevent overflow
+const ro=new ResizeObserver(()=>{if(!tab.term||!tab.paneEl)return;const h=tab.paneEl.clientHeight,w=tab.paneEl.clientWidth;if(h<=0||w<=0)return;const cellH=tab.term._core._renderService.dimensions.css.cell.height||18;const cellW=tab.term._core._renderService.dimensions.css.cell.width||9;if(!cellH||!cellW)return;const cols=Math.floor(w/cellW);const rows=Math.floor(h/cellH);if(cols>0&&rows>0&&(cols!==tab.term.cols||rows!==tab.term.rows)){tab.term.resize(cols,rows);if(tab.ws&&tab.ws.readyState===1)tab.ws.send(JSON.stringify({type:'resize',cols,rows}))}});ro.observe(pane);tab._ro=ro;
 // Selection copy: double-click to select + copy, right-click to copy
 term.attachCustomKeyEventHandler(ev=>{
   // Ctrl+Shift+C = copy selection
@@ -617,7 +619,7 @@ setTimeout(()=>{
 term.onData(d=>{tab._userScrolledUp=false;if(ws.readyState===1)ws.send(d)});tab.ws=ws;const onResize=()=>{if(tab.fitAddon)tab.fitAddon.fit()};window.addEventListener('resize',onResize);tab._onResize=onResize}
 
 function activateTab(tabId){activeTabId=tabId;tabs.forEach(t=>{const pane=document.getElementById('pane_'+t.id);if(pane)pane.classList.toggle('on',t.id===tabId);if(t.id===tabId&&t.fitAddon)setTimeout(()=>{t.fitAddon.fit();if(t.term){t.term.scrollBottom();t.term.focus()}},80)});renderTabs()}
-function closeTab(tabId){const idx=tabs.findIndex(t=>t.id===tabId);if(idx===-1)return;const tab=tabs[idx];if(tab._onResize)window.removeEventListener('resize',tab._onResize);if(tab.ws)tab.ws.close();if(tab.term)tab.term.dispose();const pane=document.getElementById('pane_'+tabId);if(pane)pane.remove();tabs.splice(idx,1);if(activeTabId===tabId){activeTabId=tabs.length?tabs[Math.min(idx,tabs.length-1)].id:null;if(activeTabId)activateTab(activeTabId)}renderTabs();if(!tabs.length)document.getElementById('sDot').classList.remove('on')}
+function closeTab(tabId){const idx=tabs.findIndex(t=>t.id===tabId);if(idx===-1)return;const tab=tabs[idx];if(tab._ro)tab._ro.disconnect();if(tab._onResize)window.removeEventListener('resize',tab._onResize);if(tab.ws)tab.ws.close();if(tab.term)tab.term.dispose();const pane=document.getElementById('pane_'+tabId);if(pane)pane.remove();tabs.splice(idx,1);if(activeTabId===tabId){activeTabId=tabs.length?tabs[Math.min(idx,tabs.length-1)].id:null;if(activeTabId)activateTab(activeTabId)}renderTabs();if(!tabs.length)document.getElementById('sDot').classList.remove('on')}
 
 function renderTabs(){const el=document.getElementById('termTabs');let h=tabs.map(t=>`<div class="t-tab ${t.id===activeTabId?'on':''}" onclick="activateTab('${t.id}')">
   <i class="fa-solid fa-terminal"></i><span class="tx">${esc(t.name)}</span>
