@@ -144,8 +144,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Ro
 .term-pane{position:absolute;inset:0;display:none}
 .term-pane.on{display:block}
 .term-pane .xterm{height:100%;background:transparent!important}
-.term-pane .xterm .xterm-viewport{background:transparent!important}
-.term-pane .xterm .xterm-screen{background:transparent!important}
+.term-pane .xterm .xterm-viewport{background:transparent!important;will-change:transform;-webkit-overflow-scrolling:touch}
+.term-pane .xterm .xterm-screen{background:transparent!important;will-change:transform}
+.term-pane .xterm .xterm-viewport::-webkit-scrollbar{width:6px}
+.term-pane .xterm .xterm-viewport::-webkit-scrollbar-track{background:transparent}
+.term-pane .xterm .xterm-viewport::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
 
 /* ─── Virtual Keyboard (Floating) ─── */
 .vkb-panel{position:fixed;z-index:900;width:280px;height:320px;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border2);border-radius:14px;box-shadow:var(--shadow-lg);display:none;flex-direction:column;overflow:hidden;touch-action:none}
@@ -539,7 +542,7 @@ function closeModal(){document.getElementById('modals').innerHTML=''}
 function v(id){return(document.getElementById(id)||{}).value||''}
 
 // ─── Multi-Tab Terminals ───
-function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:3000,convertEol:true});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);setTimeout(()=>{fit.fit();term.scrollBottom();term.focus()},80);tab.term=term;tab.fitAddon=fit;
+function openTermTab(server){tabCounter++;const tabId='t'+tabCounter;const tab={id:tabId,name:server.name,serverId:server.id,term:null,ws:null,fitAddon:null,paneEl:null};tabs.push(tab);renderTabs();activateTab(tabId);const pane=document.createElement('div');pane.className='term-pane on';pane.id='pane_'+tabId;document.getElementById('termBody').appendChild(pane);tab.paneEl=pane;const fs=parseInt(document.getElementById('sFontSize').value)||14;const term=new Terminal({fontSize:fs,fontFamily:"'SF Mono',Monaco,Consolas,'Courier New',monospace",theme:termTheme(),cursorBlink:false,allowProposedApi:true,allowTransparency:true,scrollback:2000,convertEol:true,smoothScrollDuration:120});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.loadAddon(new WebLinksAddon.WebLinksAddon());term.open(pane);setTimeout(()=>{fit.fit();term.scrollBottom();term.focus()},80);tab.term=term;tab.fitAddon=fit;
 // Selection copy: double-click to select + copy, right-click to copy
 term.attachCustomKeyEventHandler(ev=>{
   // Ctrl+Shift+C = copy selection
