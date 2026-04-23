@@ -580,7 +580,6 @@ function applyTermOpts(){const fs=parseInt(document.getElementById('sFontSize').
 
 // ─── Virtual Keyboard (Floating, Draggable, Paginated) ───
 const VKB_PAGES=[
-  {name:'📋 粘贴',type:'paste'},
   {name:'快捷',rows:[
     [{k:'Ctrl+C',t:'⌃C',w:'combo'},{k:'Ctrl+V',t:'⌃V',w:'combo'},{k:'Ctrl+Z',t:'⌃Z',w:'combo'},{k:'Ctrl+D',t:'⌃D',w:'combo'},{k:'Ctrl+L',t:'⌃L',w:'combo'}],
     [{k:'Ctrl',t:'CTRL',w:'mod',id:'vkbCtrl'},{k:'Alt',t:'ALT',w:'mod',id:'vkbAlt'},{k:'Esc',t:'ESC',w:'wide'},{k:'Tab',t:'TAB',w:'wide'}],
@@ -589,6 +588,7 @@ const VKB_PAGES=[
     [{k:'Up',t:'▲'},{k:'Down',t:'▼'},{k:'Left',t:'◀'},{k:'Right',t:'▶'}],
     [{k:'Insert',t:'Ins',w:'wide'},{k:'Delete',t:'Del',w:'wide'},{k:'~',t:'~'},{k:'/',t:'/'},{k:'|',t:'|'}],
   ]},
+  {name:'粘贴',type:'paste'},
   {name:'数字',rows:[
     [{k:'`',t:'`'},{k:'1',t:'1'},{k:'2',t:'2'},{k:'3',t:'3'},{k:'4',t:'4'}],
     [{k:'5',t:'5'},{k:'6',t:'6'},{k:'7',t:'7'},{k:'8',t:'8'},{k:'9',t:'9'}],
@@ -619,7 +619,6 @@ const VKB_PAGES=[
     [{k:'Ctrl',t:'CTRL',w:'mod',id:'vkbCtrl'},{k:'Alt',t:'ALT',w:'mod',id:'vkbAlt'},{k:'Enter',t:'↵',w:'wide'}],
     [{k:'Up',t:'▲'},{k:'Down',t:'▼'},{k:'Left',t:'◀'},{k:'Right',t:'▶'}],
   ]},
-  {name:'📋 粘贴',type:'paste'},
 ];
 let vkbPage=0,vkbOpen=false,vkbCtrlOn=false,vkbAltOn=false;
 
@@ -659,11 +658,9 @@ function renderVKBPage(){
     }).join('')+'</div>').join('');
   }
 
-  // Tab 栏：正常顺序，粘贴放最后
-  const pasteIdx=VKB_PAGES.findIndex(p=>p.type==='paste');
+  // Tab 栏
   const tabsHtml=VKB_PAGES.map((p,i)=>{
-    const label=p.type==='paste'?'📋 '+p.name:p.name;
-    return `<button class="${i===vkbPage?'on':''}" onclick="vkbGoPage(${i})">${label}</button>`;
+    return `<button class="${i===vkbPage?'on':''}" onclick="vkbGoPage(${i})">${p.name}</button>`;
   }).join('');
   pg.innerHTML=tabsHtml;
 }
