@@ -51,6 +51,16 @@ bash deploy.sh
 
 部署完成后会显示本地、公网、隧道访问地址。
 
+### 更新已部署的版本
+
+已经部署过的服务器，再次运行即可平滑更新，数据保留：
+
+```bash
+bash deploy.sh
+```
+
+自动检测：代码有变则 git pull，package.json 有变则 npm install，pm2 reload 零停机重载，data 目录完全保留。
+
 ### 子目录反代（已有网站时推荐）
 
 如果服务器上已有网站，不想新开域名/端口，可以用 `BASE_PATH` 部署到子目录：
