@@ -1,0 +1,26 @@
+WebSSH 一键部署命令
+====================
+
+1. 上传 webssh.tar.gz 到服务器
+
+2. 解压并部署：
+
+tar xzf webssh.tar.gz && cd webssh && bash deploy.sh
+
+3. 完成后会显示：
+   - 本地访问地址: http://localhost:9111
+   - 公网隧道地址: https://xxx.serveousercontent.com
+
+4. 停止服务：
+
+bash stop.sh
+
+5. 重新部署：
+
+bash deploy.sh
+
+注意事项：
+- 需要 Node.js >= 16
+- 需要 npm
+- 需要 ssh 客户端（用于 serveo 隧道）
+- 数据保存在 data/ 目录，重启不丢失

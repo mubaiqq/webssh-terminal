@@ -1,0 +1,16 @@
+{
+  "name": "webssh-tool",
+  "version": "1.0.0",
+  "description": "Online SSH Terminal with commands & notepad",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "deploy": "bash deploy.sh"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "node-pty": "^1.0.0",
+    "uuid": "^9.0.0"
+  }
+}
